@@ -1,0 +1,9 @@
+{
+  "name": "Alfa Channels",
+  "packageName": "dev.alfa.skystream",
+  "description": "Canales Alfa portados a SkyStream",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/Netiscom/alfa-channels/main/dist/plugins.json"
+  ]
+}

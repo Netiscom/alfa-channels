@@ -1,0 +1,12 @@
+{
+  "name": "alfa-channels",
+  "version": "1.0.0",
+  "description": "Canales Alfa portados a SkyStream",
+  "private": true,
+  "scripts": {
+    "deploy": "skystream deploy -u https://raw.githubusercontent.com/Netiscom/alfa-channels/main/"
+  },
+  "devDependencies": {
+    "skystream-extractors": "latest"
+  }
+}

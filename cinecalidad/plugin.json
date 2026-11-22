@@ -1,0 +1,15 @@
+{
+  "packageName": "dev.alfa.skystream.cinecalidad",
+  "name": "CineCalidad",
+  "version": 1,
+  "baseUrl": "https://www.cinecalidad.vg",
+  "description": "Películas de CineCalidad Latino, Castellano y Cinema Qualidade",
+  "authors": ["OpenCode"],
+  "languages": ["es", "pt"],
+  "categories": ["Movie"],
+  "domains": [
+    { "name": "CineCalidad Latino", "url": "https://www.cinecalidad.vg" },
+    { "name": "CineCalidad Castellano", "url": "https://www.cinecalidad.vg/espana/" },
+    { "name": "Cinema Qualidade", "url": "https://www.cinemaqualidade.im" }
+  ]
+}
