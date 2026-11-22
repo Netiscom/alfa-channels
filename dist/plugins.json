@@ -21,5 +21,30 @@
       }
     ],
     "url": "https://raw.githubusercontent.com/Netiscom/alfa-channels/main/dist/dev.alfa.skystream.cinecalidad.sky"
+  },
+  {
+    "packageName": "dev.alfa.skystream.estrenoscinesaa",
+    "name": "EstrenosCinesaa",
+    "version": 1,
+    "baseUrl": "https://www.estrenoscinesaa.com/",
+    "description": "Películas, series y episodios en castellano de EstrenosCinesaa",
+    "authors": [
+      "OpenCode"
+    ],
+    "languages": [
+      "es"
+    ],
+    "categories": [
+      "Movie",
+      "TVShow"
+    ],
+    "iconUrl": "https://www.estrenoscinesaa.com/wp-content/uploads/2020/06/logoEstrenosCinesaa.png",
+    "domains": [
+      {
+        "name": "EstrenosCinesaa",
+        "url": "https://www.estrenoscinesaa.com/"
+      }
+    ],
+    "url": "https://raw.githubusercontent.com/Netiscom/alfa-channels/main/dist/dev.alfa.skystream.estrenoscinesaa.sky"
   }
 ]
