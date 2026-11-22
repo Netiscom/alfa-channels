@@ -1,7 +1,6 @@
 (function() {
-  const DEFAULT_LATINO = 'https://www.cinecalidad.vg';
-  const DEFAULT_CASTELLANO = DEFAULT_LATINO + '/espana/';
-  const DEFAULT_PORTUGUES = 'https://www.cinemaqualidade.im';
+  const DEFAULT_BASE = 'https://www.cinecalidad.vg/espana/';
+  const ROOT_BASE = DEFAULT_BASE.replace(/\/espana\/?$/i, '');
   const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36';
   const PROXY_BASE = 'https://r.jina.ai/';
   const PROXY_HEADERS = { 'X-Respond-With': 'html' };
@@ -42,7 +41,21 @@
     torrent: 'Torrent'
   };
 
-  const SKIP_SERVERS = ['cineplay', 'netu', 'trailer', 'fembed', 'dood', 'doodstream'];
+  const SKIP_SERVERS = [
+    'cineplay',
+    'netu',
+    'trailer',
+    'fembed',
+    'dood',
+    'doodstream',
+    '1fichier',
+    'onefichier',
+    'mediafire',
+    'mega',
+    'megaup',
+    'utorrent',
+    'torrent'
+  ];
 
   function decodeEntities(value) {
     return String(value || '')
@@ -64,20 +77,19 @@
 
   function originOf(url) {
     const match = /^(https?:\/\/[^/]+)/i.exec(String(url || ''));
-    return match ? match[1] : DEFAULT_LATINO;
+    return match ? match[1] : ROOT_BASE;
   }
 
   function makeHeaders(refererUrl, extra) {
-    const base = Object.assign({
+    return Object.assign({
       'User-Agent': USER_AGENT,
       'Referer': originOf(refererUrl) + '/'
     }, extra || {});
-    return base;
   }
 
   function normalizeBase(url) {
     let base = decodeEntities(String(url || '')).trim().replace(/\/+$/, '');
-    if (!/^https?:\/\//i.test(base)) base = DEFAULT_LATINO;
+    if (!/^https?:\/\//i.test(base)) base = DEFAULT_BASE.replace(/\/+$/, '');
     return base;
   }
 
@@ -189,6 +201,15 @@
     return resolveUrl(result, base);
   }
 
+  function decodeLinkPath(url) {
+    const match = /^(https?:\/\/[^?#]+\/links\/)([^/?#]+)/i.exec(String(url || ''));
+    if (!match) return '';
+    const decoded = decodeBase64Utf8(match[2]).trim();
+    if (!decoded) return '';
+    if (/^[a-z][a-z0-9+.-]*:/i.test(decoded)) return decoded;
+    return resolveUrl(decoded, match[1]);
+  }
+
   function normalizeServer(text, url) {
     let server = cleanTitle(text || '').toLowerCase().replace('utorrent', 'torrent');
     if (SERVER_NAMES[server]) server = SERVER_NAMES[server];
@@ -199,6 +220,14 @@
   function skipServer(server) {
     const lower = String(server || '').toLowerCase();
     return SKIP_SERVERS.indexOf(lower) >= 0;
+  }
+
+  function firstAttr(entries) {
+    for (let i = 0; i < entries.length; i++) {
+      const value = entries[i] && String(entries[i].attr || '').trim();
+      if (value) return value;
+    }
+    return '';
   }
 
   async function parse(html, selector, attr) {
@@ -251,19 +280,9 @@
   }
 
   function sectionUrls() {
-    const selected = normalizeBase((typeof manifest !== 'undefined' && manifest.baseUrl) || DEFAULT_LATINO);
-    const isSpanish = /\/espana(?:\/|$)/i.test(selected);
-    const isPortuguese = /cinemaqualidade/i.test(selected);
-    const latino = isSpanish || isPortuguese ? DEFAULT_LATINO : selected;
-    const castellano = isSpanish ? selected : DEFAULT_LATINO + '/espana/';
-    const portugues = isPortuguese ? selected : DEFAULT_PORTUGUES;
-    return [
-      { title: 'Trending', url: joinUrl(latino, 'peliculas-populares/'), site: 1 },
-      { title: 'Estrenos', url: joinUrl(latino, 'estrenos/'), site: 1 },
-      { title: 'Películas', url: latino, site: 1 },
-      { title: 'Castellano', url: castellano, site: 2 },
-      { title: 'Portugués', url: portugues, site: 3 }
-    ];
+    const selected = normalizeBase((typeof manifest !== 'undefined' && manifest.baseUrl) || DEFAULT_BASE);
+    const base = /\/espana(?:\/|$)/i.test(selected) ? selected.replace(/\/+$/, '') + '/' : DEFAULT_BASE;
+    return [{ title: 'Castellano', url: base, site: 2 }];
   }
 
   async function parseListing(html, base, site) {
@@ -277,15 +296,16 @@
       if (!links.length || !links[0].attr) continue;
       const href = resolveUrl(links[0].attr, base);
       if (/\/serie/i.test(href) || /\d+x\d+/i.test(href) || /episode/i.test(href)) continue;
-      const dataImages = await parse(card, 'img.w-full', 'data-src');
-      const srcImages = await parse(card, 'img.w-full', 'src');
-      const titleImages = await parse(card, 'img.w-full', 'title');
-      const altImages = await parse(card, 'img.w-full', 'alt');
-      const headings = await parse(card, 'h2');
-      let rawTitle = titleImages.length ? titleImages[0].attr : '';
-      if (!rawTitle && altImages.length) rawTitle = altImages[0].attr;
-      if (!rawTitle && headings.length) rawTitle = headings[0].text;
-      rawTitle = decodeEntities(rawTitle);
+      const image = firstAttr([
+        (await parse(card, 'img.w-full', 'data-src'))[0],
+        (await parse(card, 'img.w-full', 'src'))[0]
+      ]);
+      const titleEntry = (await parse(card, 'img.w-full', 'title'))[0];
+      const altEntry = (await parse(card, 'img.w-full', 'alt'))[0];
+      const headingEntry = (await parse(card, 'h2'))[0];
+      let rawTitle = decodeEntities(String(titleEntry && titleEntry.attr || ''));
+      if (!rawTitle && altEntry) rawTitle = decodeEntities(altEntry.attr);
+      if (!rawTitle && headingEntry) rawTitle = headingEntry.text;
       let year = 0;
       let title = rawTitle;
       const yearMatch = /\((\d{4})\)/.exec(rawTitle);
@@ -295,12 +315,11 @@
       }
       title = cleanTitle(title);
       if (!title || /premium/i.test(title) || /promo/i.test(title)) continue;
-      const image = dataImages.length ? dataImages[0].attr : (srcImages.length ? srcImages[0].attr : '');
       const poster = resolveUrl(image, base).replace(/-\d+x\d+\.jpg$/i, '.jpg');
       const plots = await parse(card, 'p');
       const description = plots.length ? plots[0].text : '';
       let finalUrl = href;
-      if (Number(site) === 2 && finalUrl.indexOf('castellano=sp') < 0) {
+      if (finalUrl.indexOf('castellano=sp') < 0) {
         finalUrl += (finalUrl.indexOf('?') >= 0 ? '&' : '?') + 'castellano=sp';
       }
       if (seen[finalUrl]) continue;
@@ -315,39 +334,44 @@
         headers: makeHeaders(finalUrl)
       }));
     }
-    const pages = await parse(html, 'nav.pagination a[href]', 'href');
-    if (pages.length > 1) {
-      const nextHref = pages[pages.length - 1].attr || pages[pages.length - 2].attr;
-      if (nextHref) {
-        const nextUrl = resolveUrl(nextHref, base);
-        if (nextUrl !== resolveUrl(base, base)) {
-          items.push(new MultimediaItem({
-            title: 'Página siguiente',
-            url: makeStateUrl('list', { url: nextUrl, title: 'Página siguiente', site: site }),
-            posterUrl: '',
-            type: 'other',
-            description: 'Cargar más resultados',
-            headers: makeHeaders(nextUrl)
-          }));
+    const paginationAllowed = /\/espana(?:\/|$)/i.test(base) || /castellano=sp/i.test(base);
+    if (paginationAllowed) {
+      const pages = await parse(html, 'nav.pagination a[href]', 'href');
+      if (pages.length > 1) {
+        const nextHref = firstAttr([pages[pages.length - 1], pages[pages.length - 2]]);
+        if (nextHref) {
+          const nextUrl = addQuery(resolveUrl(nextHref, base), 'castellano', 'sp');
+          if (nextUrl !== resolveUrl(base, base)) {
+            items.push(new MultimediaItem({
+              title: 'Página siguiente',
+              url: makeStateUrl('list', { url: nextUrl, title: 'Página siguiente', site: site || 2 }),
+              posterUrl: '',
+              type: 'other',
+              description: 'Cargar más resultados',
+              headers: makeHeaders(nextUrl)
+            }));
+          }
         }
       }
     }
-    return items.slice(0, 12);
+    return items;
   }
 
   async function parseDetail(html, url) {
     const headings = await parse(html, 'h1');
     const titleImages = await parse(html, 'img.w-full', 'title');
     const altImages = await parse(html, 'img.w-full', 'alt');
-    const dataImages = await parse(html, 'img.w-full', 'data-src');
-    const srcImages = await parse(html, 'img.w-full', 'src');
+    const image = firstAttr([
+      (await parse(html, 'img.w-full', 'data-src'))[0],
+      (await parse(html, 'img.w-full', 'src'))[0]
+    ]);
     const plots = await parse(html, 'div.sinopsis p, .sinopsis p, p.sinopsis, .description, .plot');
     const scores = await parse(html, '.score, span.score');
     const runtimes = await parse(html, '.runtime, span.runtime');
     const tags = await parse(html, 'a[href*="/categoria/"]');
     const headingTitle = headings.length ? headings[0].text : '';
     const imageTitle = titleImages.length ? titleImages[0].attr : '';
-    const rawTitle = /\((\d{4})\)/.test(imageTitle) ? imageTitle : (headingTitle || imageTitle || (altImages.length ? altImages[0].attr : ''));
+    const rawTitle = /\((\d{4})\)/.test(imageTitle) ? imageTitle : (headingTitle || imageTitle || firstAttr(altImages));
     let year = 0;
     let title = rawTitle;
     const yearMatch = /\((\d{4})\)/.exec(rawTitle) || /\b(19\d{2}|20\d{2})\b/.exec(rawTitle);
@@ -355,7 +379,6 @@
       year = Number(yearMatch[1]);
       title = rawTitle.slice(0, yearMatch.index);
     }
-    const image = dataImages.length ? dataImages[0].attr : (srcImages.length ? srcImages[0].attr : '');
     const poster = resolveUrl(image, url).replace(/-\d+x\d+\.jpg$/i, '.jpg');
     const durationMatch = runtimes.length ? /(\d+)/.exec(runtimes[0].text) : null;
     const scoreMatch = scores.length ? /([0-9]+(?:\.[0-9]+)?)/.exec(scores[0].text) : null;
@@ -375,13 +398,101 @@
     };
   }
 
+  function packedToken(index, radix) {
+    if (radix <= 36) return index.toString(radix);
+    if (index >= radix) {
+      return packedToken(Math.floor(index / radix), radix) + packedToken(index % radix, radix);
+    }
+    return index > 35 ? String.fromCharCode(index + 29) : index.toString(36);
+  }
+
+  function unpackPackedJs(source) {
+    const match = /return p\}\('([\s\S]*?)',(\d+),(\d+),'([^']*)'\.split\('\|'\)/.exec(String(source || ''));
+    if (!match) return '';
+    let packed = match[1];
+    const radix = Number(match[2]);
+    const keys = match[4].split('|');
+    if (radix < 2 || isNaN(radix)) return '';
+    for (let i = keys.length - 1; i >= 0; i--) {
+      if (!keys[i]) continue;
+      const token = packedToken(i, radix);
+      packed = packed.replace(new RegExp('\\b' + token + '\\b', 'g'), function() {
+        return keys[i];
+      });
+    }
+    return packed;
+  }
+
+  function extractMediaUrls(source, referer) {
+    const text = String(source || '')
+      .replace(/\\\//g, '/')
+      .replace(/\\u0026/g, '&')
+      .replace(/&amp;/g, '&');
+    const found = [];
+    const seen = {};
+    const candidates = text.match(/https?:\/\/[^\s"'<>\\]+/gi) || [];
+    for (let i = 0; i < candidates.length; i++) {
+      let url = decodeEntities(candidates[i]).replace(/[,;)]+$/g, '');
+      if (!/\.(?:m3u8|mp4)(?:\?|$)/i.test(url) && !/\/hls2?\//i.test(url)) continue;
+      if (/\.(?:jpe?g|png|webp|gif)(?:\?|$)/i.test(url)) continue;
+      if (/adangle|premium|xvs\.tt|tracker/i.test(url)) continue;
+      url = resolveUrl(url, referer);
+      if (!url || seen[url]) continue;
+      seen[url] = true;
+      found.push(url);
+    }
+    return found;
+  }
+
+  function extractIframeUrls(source, referer) {
+    const regex = /<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
+    const found = [];
+    let match;
+    while ((match = regex.exec(String(source || ''))) !== null) {
+      const url = resolveUrl(decodeEntities(match[1]), referer);
+      if (/^https?:\/\//i.test(url) && !/about:blank/i.test(url)) found.push(url);
+    }
+    return found;
+  }
+
+  async function resolveMediaUrl(target, referer) {
+    const found = [];
+    const seen = {};
+    let current = target;
+    for (let depth = 0; depth < 2 && current; depth++) {
+      const response = await httpGet(current);
+      const urls = extractMediaUrls(response.body, current)
+        .concat(extractMediaUrls(unpackPackedJs(response.body), current));
+      for (let i = 0; i < urls.length; i++) {
+        if (seen[urls[i]]) continue;
+        seen[urls[i]] = true;
+        found.push(urls[i]);
+      }
+      if (found.length) break;
+      const iframes = extractIframeUrls(response.body, current);
+      current = iframes.length ? iframes[0] : '';
+    }
+    return found;
+  }
+
   async function resolveOptions(options, referer) {
     const streams = [];
     const seen = {};
+    const seenStream = {};
+    const addStream = function(stream) {
+      if (!stream || !stream.url || seenStream[stream.url]) return;
+      seenStream[stream.url] = true;
+      streams.push(stream);
+    };
     for (let i = 0; i < options.length; i++) {
       const option = options[i];
       let target = option.url;
-      if (/^https?:\/\//i.test(target) && /(cinecalidad|cinemaqualidade)/i.test(target)) {
+      if (option.castellano && target.indexOf('castellano=sp') < 0) {
+        target = addQuery(target, 'castellano', 'sp');
+      }
+      const decoded = decodeLinkPath(target);
+      if (decoded) target = decoded;
+      if (/^https?:\/\//i.test(target) && /cinecalidad|cinemaqualidade/i.test(target)) {
         const response = await httpGet(target);
         const direct = await parse(response.body, '#btn_enlace a[href]', 'href');
         if (direct.length && direct[0].attr) target = resolveUrl(direct[0].attr, target);
@@ -400,21 +511,33 @@
         for (let j = 0; j < resolved.length; j++) {
           const link = resolved[j];
           if (!link || !link.url) continue;
-          streams.push(new StreamResult({
+          addStream(new StreamResult({
             url: link.url,
             source: link.source || link.name || option.source,
             quality: link.quality || option.quality || 'HD',
             headers: Object.assign(makeHeaders(referer), link.headers || {})
           }));
         }
-      } else {
-        streams.push(new StreamResult({
-          url: target,
-          source: option.source,
-          quality: option.quality || 'HD',
-          headers: makeHeaders(referer)
-        }));
+        continue;
       }
+      const media = await resolveMediaUrl(target, referer);
+      if (media.length) {
+        for (let j = 0; j < media.length; j++) {
+          addStream(new StreamResult({
+            url: media[j],
+            source: option.source,
+            quality: option.quality || 'HD',
+            headers: makeHeaders(referer)
+          }));
+        }
+        continue;
+      }
+      addStream(new StreamResult({
+        url: target,
+        source: option.source,
+        quality: option.quality || 'HD',
+        headers: makeHeaders(referer)
+      }));
     }
     return streams;
   }
@@ -425,8 +548,7 @@
     const dataSrcs = await parse(html, 'ul.py-2.options.dff a.inline-block', 'data-src');
     const options = [];
     for (let i = 0; i < anchors.length; i++) {
-      let raw = i < dataUrls.length ? dataUrls[i].attr : '';
-      if (!raw && i < dataSrcs.length) raw = dataSrcs[i].attr;
+      let raw = firstAttr([dataUrls[i], dataSrcs[i]]);
       if (!raw) continue;
       const server = normalizeServer(anchors[i].text || anchors[i].attr, url);
       if (skipServer(server)) continue;
@@ -437,7 +559,7 @@
         continue;
       }
       if (!target || /mediafire/i.test(target)) continue;
-      options.push({ url: target, source: server, quality: 'HD' });
+      options.push({ url: target, source: server, quality: 'HD', castellano: true });
     }
     return await resolveOptions(options, url);
   }
@@ -466,27 +588,10 @@
         cb({ success: true, data: [] });
         return;
       }
-      const sections = sectionUrls();
-      const unique = [];
-      const seenBase = {};
-      for (let i = 0; i < sections.length; i++) {
-        const base = normalizeBase(sections[i].url);
-        if (seenBase[base]) continue;
-        seenBase[base] = true;
-        unique.push({ url: addQuery(base, 's', text), site: sections[i].site });
-      }
-      const responses = await Promise.all(unique.map(function(entry) { return httpGet(entry.url); }));
-      const data = [];
-      const seen = {};
-      for (let i = 0; i < responses.length; i++) {
-        const items = await parseListing(responses[i].body, unique[i].url, unique[i].site);
-        for (let j = 0; j < items.length; j++) {
-          if (seen[items[j].url]) continue;
-          seen[items[j].url] = true;
-          data.push(items[j]);
-        }
-      }
-      cb({ success: true, data: data.slice(0, 40) });
+      const target = addQuery(ROOT_BASE + '/', 's', text);
+      const response = await httpGet(target);
+      const items = await parseListing(response.body, target, 2);
+      cb({ success: true, data: items.slice(0, 40) });
     } catch (error) {
       cb({ success: false, errorCode: 'SEARCH_ERROR', message: String((error && error.stack) || error) });
     }
@@ -496,17 +601,17 @@
     try {
       const state = parseState(url);
       if (state && (state.type === 'list' || state.type === 'menu')) {
-        const target = state.url || (typeof manifest !== 'undefined' ? manifest.baseUrl : DEFAULT_LATINO);
+        const target = state.url || DEFAULT_BASE;
         const response = await httpGet(target);
-        const items = await parseListing(response.body, target, Number(state.site || 1));
+        const items = await parseListing(response.body, target, Number(state.site || 2));
         cb({
           success: true,
           data: new MultimediaItem({
-            title: state.title || 'CineCalidad',
+            title: state.title || 'CineCalidad España',
             url: url,
             posterUrl: items.length ? items[0].posterUrl : '',
             type: 'other',
-            description: 'Navegación de CineCalidad',
+            description: 'Películas en castellano de CineCalidad',
             recommendations: items,
             streams: [],
             headers: makeHeaders(target)
@@ -518,7 +623,7 @@
       const response = await httpGet(target);
       const detail = await parseDetail(response.body, target);
       const streams = await extractStreams(response.body, target);
-      const related = await parseListing(response.body, target, 1);
+      const related = await parseListing(response.body, target, 2);
       const data = Object.assign({
         url: target,
         type: 'movie',
@@ -538,13 +643,23 @@
       const target = state && state.url ? state.url : String(url || '');
       let streams = [];
       if (state && state.type === 'option') {
-        streams = await resolveOptions([{ url: target, source: state.source || 'Directo', quality: state.quality || 'HD' }], target);
+        streams = await resolveOptions([{
+          url: target,
+          source: state.source || 'Directo',
+          quality: state.quality || 'HD',
+          castellano: String(state.castellano) !== '0'
+        }], target);
       } else {
         const response = await httpGet(target);
         if (/<ul\b[^>]*class=["'][^"']*options[^"']*dff/i.test(response.body)) {
           streams = await extractStreams(response.body, target);
         } else {
-          streams = await resolveOptions([{ url: target, source: 'Directo', quality: 'HD' }], target);
+          streams = await resolveOptions([{
+            url: target,
+            source: 'Directo',
+            quality: 'HD',
+            castellano: /castellano=sp/i.test(target)
+          }], target);
         }
       }
       cb({ success: true, data: streams });
