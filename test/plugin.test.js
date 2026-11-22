@@ -6,6 +6,9 @@ const vm = require('node:vm');
 
 const pluginSource = fs.readFileSync(path.join(__dirname, '..', 'cinecalidad', 'plugin.js'), 'utf8');
 const LATINO = 'https://www.cinecalidad.vg';
+const CASTELLANO = `${LATINO}/espana/`;
+const PORTUGUES = 'https://www.cinemaqualidade.im';
+const PROXY_BASE = 'https://r.jina.ai/';
 
 function b64(value) {
   return Buffer.from(value, 'utf8').toString('base64');
@@ -138,18 +141,25 @@ function parseHtml(html, selector, attr) {
   return result;
 }
 
-function createSandbox(overrides = {}) {
+function createSandbox(overrides = {}, options = {}) {
   const requests = [];
   const httpGet = async (url, headers) => {
     requests.push({ url, headers });
+    if (options.blockDirect && !url.startsWith(PROXY_BASE)) {
+      return { status: 403, body: '<title>Just a moment...</title>', headers: {} };
+    }
+    const target = url.startsWith(PROXY_BASE)
+      ? decodeURIComponent(url.slice(PROXY_BASE.length))
+      : url;
     let body = '';
-    if (url.includes('peliculas-populares') || url.includes('estrenos') || url.includes('/peliculas')) {
+    if (target === LATINO || target === CASTELLANO || target === PORTUGUES ||
+        target.includes('peliculas-populares') || target.includes('estrenos') || target.includes('/peliculas')) {
       body = HOME_HTML;
-    } else if (url.includes('?s=')) {
+    } else if (target.includes('?s=')) {
       body = SEARCH_HTML;
-    } else if (url.includes('/pelicula/matrix')) {
+    } else if (target.includes('/pelicula/matrix')) {
       body = DETAIL_HTML;
-    } else if (url.includes('/go/stream-1')) {
+    } else if (target.includes('/go/stream-1')) {
       body = INTERMEDIATE_HTML;
     }
     return { status: body ? 200 : 404, body, headers: {} };
@@ -225,7 +235,7 @@ function invoke(callbackApi, ...args) {
 }
 
 test('getHome publica categorias y filtra series y promociones', async () => {
-  const { sandbox } = createSandbox();
+  const { sandbox, requests } = createSandbox();
   const result = await invoke(sandbox.getHome);
 
   assert.equal(result.success, true);
@@ -238,6 +248,7 @@ test('getHome publica categorias y filtra series y promociones', async () => {
   assert.ok(result.data['Portugués']);
   assert.equal(result.data.Trending.some((item) => item.url.includes('/serie/')), false);
   assert.equal(result.data.Trending.some((item) => item.title.includes('Premium')), false);
+  assert.equal(requests.some((request) => request.url.startsWith(PROXY_BASE)), false);
 });
 
 test('search consulta el parametro s y devuelve resultados parseados', async () => {
@@ -270,4 +281,59 @@ test('loadStreams resuelve un enlace directo con loadExtractor', async () => {
   assert.equal(result.success, true);
   assert.equal(result.data.length, 1);
   assert.equal(result.data[0].quality, 1080);
+});
+
+test('getHome usa el proxy cuando la respuesta directa esta bloqueada', async () => {
+  const { sandbox, requests } = createSandbox({}, { blockDirect: true });
+  const result = await invoke(sandbox.getHome);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.Trending[0].title, 'Matrix');
+  const proxyRequests = requests.filter((request) => request.url.startsWith(PROXY_BASE));
+  assert.ok(proxyRequests.length >= 1);
+  assert.ok(proxyRequests.every((request) => request.headers['X-Respond-With'] === 'html'));
+  assert.ok(proxyRequests.some((request) =>
+    decodeURIComponent(request.url.slice(PROXY_BASE.length)).includes('/peliculas-populares')));
+});
+
+test('search usa el proxy cuando la respuesta directa esta bloqueada', async () => {
+  const { sandbox, requests } = createSandbox({}, { blockDirect: true });
+  const result = await invoke(sandbox.search, 'the matrix');
+
+  assert.equal(result.success, true);
+  assert.equal(result.data[0].title, 'Matrix');
+  assert.ok(requests.some((request) => {
+    if (!request.url.startsWith(PROXY_BASE)) return false;
+    return decodeURIComponent(request.url.slice(PROXY_BASE.length)).includes('s=the%20matrix');
+  }));
+});
+
+test('load usa el proxy para metadata y streams cuando la respuesta directa esta bloqueada', async () => {
+  const { sandbox, requests } = createSandbox({}, { blockDirect: true });
+  const result = await invoke(sandbox.load, `${LATINO}/pelicula/matrix`);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.title, 'Matrix');
+  assert.equal(result.data.year, 1999);
+  assert.ok(result.data.streams.length >= 1);
+  assert.equal(result.data.streams[0].url, 'https://streamwish.example/file.m3u8');
+  assert.ok(requests.some((request) => {
+    if (!request.url.startsWith(PROXY_BASE)) return false;
+    return decodeURIComponent(request.url.slice(PROXY_BASE.length)).includes('/pelicula/matrix');
+  }));
+});
+
+test('getHome usa el proxy cuando la solicitud directa lanza error', async () => {
+  const requests = [];
+  const httpGet = async (url, headers) => {
+    requests.push({ url, headers });
+    if (!url.startsWith(PROXY_BASE)) throw new Error('network down');
+    return { status: 200, body: HOME_HTML, headers: {} };
+  };
+  const { sandbox } = createSandbox({ http_get: httpGet, http_parallel: undefined });
+  const result = await invoke(sandbox.getHome);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.Trending[0].title, 'Matrix');
+  assert.ok(requests.some((request) => request.url.startsWith(PROXY_BASE)));
 });

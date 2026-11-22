@@ -3,6 +3,18 @@
   const DEFAULT_CASTELLANO = DEFAULT_LATINO + '/espana/';
   const DEFAULT_PORTUGUES = 'https://www.cinemaqualidade.im';
   const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36';
+  const PROXY_BASE = 'https://r.jina.ai/';
+  const PROXY_HEADERS = { 'X-Respond-With': 'html' };
+  const BLOCK_MARKERS = [
+    /Just a moment/i,
+    /cf-browser-verification/i,
+    /cf_chl_/i,
+    /Attention Required/i,
+    /Access denied/i,
+    /Enable JavaScript and cookies/i,
+    /Proxy is launching/i,
+    /AuthenticationRequiredError/i
+  ];
 
   const TITLE_CLEAN = [
     /\b(?:TV|Online|4k-hdr|fullbluray|4k|3d|miniserie|imax)\b/gi,
@@ -198,13 +210,44 @@
     }
   }
 
-  async function httpGet(url) {
-    const response = await http_get(url, makeHeaders(url));
+  function isBlocked(response) {
+    const body = String((response && response.body) || '');
+    const status = Number((response && response.status) || 0);
+    if (!body || status >= 400) return true;
+    for (let i = 0; i < BLOCK_MARKERS.length; i++) {
+      if (BLOCK_MARKERS[i].test(body)) return true;
+    }
+    return false;
+  }
+
+  function proxyUrl(url) {
+    return PROXY_BASE + encodeURIComponent(String(url || ''));
+  }
+
+  async function request(url, headers) {
+    const response = await http_get(url, headers);
     return {
-      status: response && response.status ? response.status : 0,
+      status: Number((response && response.status) || 0),
       body: String((response && response.body) || ''),
       headers: (response && response.headers) || {}
     };
+  }
+
+  async function httpGet(url) {
+    let response = null;
+    try {
+      response = await request(url, makeHeaders(url));
+    } catch (error) {
+      response = null;
+    }
+    if (response && !isBlocked(response)) return response;
+    try {
+      const proxied = await request(proxyUrl(url), makeHeaders(url, PROXY_HEADERS));
+      if (proxied && !isBlocked(proxied)) return proxied;
+    } catch (error) {
+      return response || { status: 0, body: '', headers: {} };
+    }
+    return response || { status: 0, body: '', headers: {} };
   }
 
   function sectionUrls() {
@@ -402,12 +445,7 @@
   async function getHome(cb) {
     try {
       const sections = sectionUrls();
-      const requests = sections.map(function(section) {
-        return { url: section.url, headers: makeHeaders(section.url) };
-      });
-      const responses = typeof http_parallel === 'function'
-        ? await http_parallel(requests)
-        : await Promise.all(sections.map(function(section) { return httpGet(section.url); }));
+      const responses = await Promise.all(sections.map(function(section) { return httpGet(section.url); }));
       const data = {};
       for (let i = 0; i < sections.length; i++) {
         const body = responses[i] ? String(responses[i].body || '') : '';
