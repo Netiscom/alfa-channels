@@ -158,7 +158,11 @@
   async function parse(html, selector, attr) {
     try {
       const result = await parse_html(html, selector, attr);
-      return Array.isArray(result) ? result : [];
+      if (!Array.isArray(result)) return [];
+      return result.map(function(entry) {
+        if (!entry) return { text: '', html: '', attr: '' };
+        return Object.assign({}, entry, { html: entry.html || entry.innerHTML || '' });
+      });
     } catch (error) {
       return [];
     }
@@ -187,16 +191,17 @@
     };
   }
 
-  async function httpGet(url) {
+  async function httpGet(url, headers) {
     let response = null;
     try {
-      response = await request(url, makeHeaders(url));
+      response = await request(url, headers || makeHeaders(url));
     } catch (error) {
       response = null;
     }
     if (response && !isBlocked(response)) return response;
     try {
-      const proxied = await request(proxyUrl(url), makeHeaders(url, PROXY_HEADERS));
+      const proxiedHeaders = Object.assign(makeHeaders(url, PROXY_HEADERS), headers || {});
+      const proxied = await request(proxyUrl(url), proxiedHeaders);
       if (proxied && !isBlocked(proxied)) return proxied;
     } catch (error) {
       return response || { status: 0, body: '', headers: {} };
@@ -444,6 +449,167 @@
     return /\.(?:m3u8|mp4|mkv|avi|mov)(?:\?|$)/i.test(url) || /\/hls2?\//i.test(url);
   }
 
+  function absoluteUrl(value, base) {
+    const raw = decodeEntities(String(value || '').trim());
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.indexOf('//') === 0) return 'https:' + raw;
+    if (raw.charAt(0) === '/' && raw.charAt(1) !== '/') {
+      const host = raw.slice(1).split('/')[0];
+      if (/\./.test(host) && !/^pass_md5$/i.test(host)) return 'https://' + raw.slice(1);
+    }
+    return resolveUrl(raw, base);
+  }
+
+  function randomString(length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let value = '';
+    for (let i = 0; i < length; i++) {
+      value += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return value;
+  }
+
+  function extractMediaUrls(body) {
+    const text = String(body || '');
+    const regex = /(?:https?:)?\/\/[^\s'"<>]+\.(?:m3u8|mp4)(?:\?[^\s'"<>]*)?/gi;
+    const urls = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      urls.push(match[0]);
+    }
+    return urls;
+  }
+
+  function hostedKind(url) {
+    if (/streamtape|strbamtape/i.test(url)) return 'streamtape';
+    if (/dood|playmogo/i.test(url)) return 'dood';
+    if (/uqload/i.test(url)) return 'uqload';
+    if (/powvideo|powwideo/i.test(url)) return 'powvideo';
+    return '';
+  }
+
+  function resolveStreamTape(body, target) {
+    const text = String(body || '');
+    const candidates = [];
+    const literal = /(?:(?:https?:)?\/\/|\/)[^\s'"<>]+\/get_video\?[^\s'"<>]+/i.exec(text);
+    if (literal) candidates.push(literal[0]);
+    const split = /innerHTML\s*=\s*['"]([^'"]+)['"]\s*\+\s*\(?\s*['"]([^'"]*)['"]/i.exec(text);
+    if (split) candidates.push(split[1] + split[2]);
+    const media = extractMediaUrls(text);
+    for (let i = 0; i < media.length; i++) candidates.push(media[i]);
+    const mapped = candidates.map(function(value) {
+      return absoluteUrl(value, target);
+    }).filter(function(value) {
+      return /^https?:\/\//i.test(value) && (/get_video/i.test(value) || isMediaUrl(value));
+    });
+    return mapped.filter(function(value, index) {
+      for (let i = 0; i < mapped.length; i++) {
+        if (i !== index && mapped[i].length > value.length && mapped[i].indexOf(value) === 0) return false;
+      }
+      return true;
+    });
+  }
+
+  async function resolveDood(body, target) {
+    const match = /\/pass_md5\/[^'"\s<>]+/i.exec(String(body || ''));
+    if (!match) return [];
+    const md5Url = absoluteUrl(match[0], target);
+    const md5Response = await httpGet(md5Url, makeHeaders(target, { Referer: target }));
+    if (isBlocked(md5Response)) return [];
+    const base = decodeEntities(String(md5Response.body || '').trim());
+    if (!/^https?:\/\//i.test(base)) return [];
+    const tokenMatch = /[?&]token=([^&"'\s]+)/i.exec(md5Url);
+    const segments = md5Url.split('/');
+    const lastSegment = (segments[segments.length - 1] || '').split('?')[0];
+    const token = tokenMatch ? tokenMatch[1] : (lastSegment && lastSegment !== 'pass_md5' ? lastSegment : '');
+    const suffix = randomString(10) + (token ? '?token=' + token + '&expiry=' + Date.now() : '?expiry=' + Date.now());
+    return [base + suffix];
+  }
+
+  function uqloadFromQuery(url) {
+    const chunks = String(url || '').split('?');
+    for (let i = 1; i < chunks.length; i++) {
+      const pairs = chunks[i].split('&');
+      for (let j = 0; j < pairs.length; j++) {
+        const pair = pairs[j];
+        const equal = pair.indexOf('=');
+        let value = equal >= 0 ? pair.slice(equal + 1) : pair;
+        try {
+          value = decodeURIComponent(value);
+        } catch (error) {
+          value = equal >= 0 ? pair.slice(equal + 1) : pair;
+        }
+        if (/^[a-z0-9.-]+\/(?:.*\/)?i\/\d+/i.test(value)) {
+          return 'https://' + value.replace(/\/+$/, '') + '/v.mp4';
+        }
+      }
+    }
+    return '';
+  }
+
+  function resolveUqLoad(body, target) {
+    const text = String(body || '');
+    const candidates = [];
+    const queryDirect = uqloadFromQuery(target);
+    if (queryDirect) candidates.push(queryDirect);
+    const sources = /sources\s*:\s*\[\s*["']([^"']+)["']/i.exec(text);
+    if (sources) candidates.push(sources[1]);
+    const file = /["']?file["']?\s*:\s*["']([^"']+)["']/i.exec(text);
+    if (file) candidates.push(file[1]);
+    const media = extractMediaUrls(text);
+    for (let i = 0; i < media.length; i++) candidates.push(media[i]);
+    return candidates.map(function(value) {
+      return absoluteUrl(value, target);
+    }).filter(isMediaUrl);
+  }
+
+  function resolvePowVideo(body, target) {
+    const text = String(body || '');
+    const candidates = [];
+    const file = /["']?file["']?\s*:\s*["']([^"']+)["']/i.exec(text);
+    if (file) candidates.push(file[1]);
+    const source = /<source\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i.exec(text);
+    if (source) candidates.push(source[1]);
+    const media = extractMediaUrls(text);
+    for (let i = 0; i < media.length; i++) candidates.push(media[i]);
+    return candidates.map(function(value) {
+      return absoluteUrl(value, target);
+    }).filter(isMediaUrl);
+  }
+
+  async function resolveHosted(url, source) {
+    const kind = hostedKind(url);
+    if (!kind) return [];
+    const response = await httpGet(url);
+    const usable = !isBlocked(response);
+    if (!usable && kind !== 'uqload') return [];
+    const body = usable ? decodeEntities(response.body) : '';
+    let candidates = [];
+    if (kind === 'streamtape') {
+      candidates = resolveStreamTape(body, url);
+    } else if (kind === 'dood') {
+      candidates = await resolveDood(body, url);
+    } else if (kind === 'uqload') {
+      candidates = resolveUqLoad(body, url);
+    } else {
+      candidates = resolvePowVideo(body, url);
+    }
+    const headers = kind === 'dood' ? makeHeaders(url, { Referer: url }) : makeHeaders(url);
+    const streams = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const media = String(candidates[i] || '').trim();
+      if (!/^https?:\/\//i.test(media)) continue;
+      streams.push(new StreamResult({
+        url: media,
+        source: source || 'Directo',
+        quality: 'HD',
+        headers: headers
+      }));
+    }
+    return streams;
+  }
+
   async function resolveOptions(options, referer) {
     const streams = [];
     const seen = {};
@@ -463,6 +629,13 @@
         if (/\/links\/[^/?#]+/i.test(target)) continue;
       }
       if (skipSource(option.source, target)) continue;
+      if (/^https?:\/\//i.test(target) && !isMediaUrl(target)) {
+        const hosted = await resolveHosted(target, option.source);
+        if (hosted.length) {
+          for (let j = 0; j < hosted.length; j++) addStream(hosted[j]);
+          continue;
+        }
+      }
       if (typeof loadExtractor === 'function') {
         try {
           const extracted = await loadExtractor(target, originOf(referer) + '/');
@@ -483,7 +656,7 @@
           void error;
         }
       }
-      if (!/^https?:\/\//i.test(target)) continue;
+      if (!/^https?:\/\//i.test(target) || !isMediaUrl(target)) continue;
       addStream(new StreamResult({
         url: target,
         source: option.source || 'Directo',
@@ -597,6 +770,12 @@
         data.episodes = await parseSeasons(response.body, target);
       } else {
         data.streams = await extractStreams(response.body, target);
+        data.episodes = [new Episode({
+          name: detail.title || 'Reproducir',
+          url: makeStateUrl(stateType === 'episode' ? 'episode' : 'movie', { url: target }),
+          posterUrl: data.posterUrl,
+          headers: makeHeaders(target)
+        })];
       }
       cb({ success: true, data: new MultimediaItem(data) });
     } catch (error) {

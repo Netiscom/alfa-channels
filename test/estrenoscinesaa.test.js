@@ -175,6 +175,79 @@ const PLAYER_OPTIONS = `
   </div></div></div>
 `;
 
+const STREAMTAPE_URL = 'https://streamtape.com/e/ZD1ZJAR0eGiqJWq/';
+const STREAMTAPE_DIRECT = 'https://streamtape.com/get_video?id=ZD1ZJAR0eGiqJWq&expires=1795450241&ip=FHEsF0InDS9X&token=gTBYciecEX4h';
+const STREAMTAPE_HTML = `
+  <div id="norobotlink">document.getElementById('norobotlink').innerHTML = '//streamtape.com/get_video?id=ZD1ZJAR0eGiqJWq&amp;expires=1795450241' + '&amp;ip=FHEsF0InDS9X&amp;token=gTBYciecEX4h';</div>
+`;
+
+const STREAMTAPE_LITERAL_URL = 'https://streamtape.com/e/literal12345/';
+const STREAMTAPE_LITERAL_DIRECT = 'https://streamtape.com/get_video?id=literal12345&expires=1795450940&ip=GxqsEROnDS9X&token=gTFLsppd1cde';
+const STREAMTAPE_LITERAL_HTML = `
+  <div id="ideoolink" style="display:none;">/streamtape.com/get_video?id=literal12345&amp;expires=1795450940&amp;ip=GxqsEROnDS9X&amp;token=gTFLsppd1cde</div>
+`;
+
+const UQLOAD_URL = 'https://uqload.vc/e/qz6fftnxdhv5?e19.uqload.vc/i/02/06269/qz6fftnxdhv5';
+const UQLOAD_DIRECT = 'https://e19.uqload.vc/i/02/06269/qz6fftnxdhv5/v.mp4';
+const UQLOAD_HTML = `
+  <script>var playerConfig = { sources: ["${UQLOAD_DIRECT}"] };</script>
+`;
+
+const UQLOAD_QUERY_URL = 'https://uqload.vc/e/abcdef?e11.uqload.vc/i/01/00000/abcdef';
+const UQLOAD_QUERY_DIRECT = 'https://e11.uqload.vc/i/01/00000/abcdef/v.mp4';
+
+const DOOD_URL = 'https://playmogo.com/e/xc8o3b0i2bfm';
+const DOOD_MD5_PATH = '/pass_md5/289746223-47-63-1795380241-65093c254763c75a183234c18288f32d/6o96p7hargbwqo07jmyfwuyy';
+const DOOD_MD5_URL = 'https://playmogo.com' + DOOD_MD5_PATH;
+const DOOD_MD5_BODY = 'https://cdn.playmogo.com/videos/289746223/';
+const DOOD_DIRECT = DOOD_MD5_BODY + 'AAAAAAAAAA?token=6o96p7hargbwqo07jmyfwuyy&expiry=1700000000000';
+const DOOD_HTML = `
+  <script>
+    $.cookie('file_id', '289746223', { expires: 10 });
+    $.get('${DOOD_MD5_PATH}', function(data) {
+      dsplayer.src({ type: "video/mp4", src: data + makePlay() });
+    });
+    function makePlay() {
+      for (var a = "", t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", n = t.length, o = 0; 10 > o; o++) a += t.charAt(Math.floor(Math.random() * n));
+      return a + "?token=6o96p7hargbwqo07jmyfwuyy&expiry=" + Date.now();
+    }
+  </script>
+`;
+
+const POWVIDEO_URL = 'https://powvideo.org/embed-yhh9gqw6c8ss.html';
+const POWVIDEO_DIRECT = 'https://video.powvideo.org/yhh9gqw6c8ss/init-a1-x3.mp4';
+const POWVIDEO_HTML = `
+  <script>jwplayer("player").setup({ sources: [{ file: "${POWVIDEO_DIRECT}", type: "mp4" }] });</script>
+`;
+
+const REAL_PLAYER_OPTIONS = `
+  <ul id="playeroptionsul" class="no_ajax">
+    <li class="dooplay_player_option" data-nume="1"><span class="title">Ver trailer</span></li>
+    <li class="dooplay_player_option" data-nume="2"><span class="title">UqLoadCastellano</span></li>
+    <li class="dooplay_player_option" data-nume="3"><span class="title">StreamTapeCastellano</span></li>
+    <li class="dooplay_player_option" data-nume="4"><span class="title">PowVideoCastellano</span></li>
+    <li class="dooplay_player_option" data-nume="5"><span class="title">Playmogo</span></li>
+  </ul>
+  <div class="dooplay_player"><div id="dooplay_player_content">
+    <div id="source-player-1" class="source-box"><iframe src="https://www.youtube.com/embed/trailer"></iframe></div>
+    <div id="source-player-2" class="source-box"><iframe src="${UQLOAD_URL}"></iframe></div>
+    <div id="source-player-3" class="source-box"><iframe src="${STREAMTAPE_URL}"></iframe></div>
+    <div id="source-player-4" class="source-box"><iframe src="${POWVIDEO_URL}"></iframe></div>
+    <div id="source-player-5" class="source-box"><iframe src="${DOOD_URL}"></iframe></div>
+  </div></div>
+`;
+
+class FixedDate extends Date {
+  static now() {
+    return 1700000000000;
+  }
+}
+
+const FIXED_GLOBALS = {
+  Date: FixedDate,
+  Math: Object.assign(Object.create(Math), { random: () => 0 })
+};
+
 const ROOT_HTML = `
   <nav class="genres"><ul>
     <li class="cat-item"><a href="/genre/marvel/">Marvel</a></li>
@@ -211,12 +284,13 @@ function detailHtml(options) {
     <div id="info" class="sbox">
       <div class="wp-content" itemprop="description">Bela, una niña de 8 años.</div>
       ${config.episodeTitle ? `<h3 class="epih3">${config.episodeTitle}</h3>` : ''}
-      ${PLAYER_OPTIONS}
+      ${config.playerOptions || PLAYER_OPTIONS}
     </div>
   </body></html>`;
 }
 
 const MOVIE_DETAIL_HTML = detailHtml({});
+const REAL_MOVIE_DETAIL_HTML = detailHtml({ playerOptions: REAL_PLAYER_OPTIONS });
 const EPISODE_DETAIL_HTML = detailHtml({ title: 'Agatha 1x1', episodeTitle: 'Encontrad la Senda', image: 'episode' });
 
 const SERIES_DETAIL_HTML = `
@@ -231,7 +305,14 @@ function bodyFor(target) {
   if (target === BASE + 'tvshows/') return TVSHOWS_HTML;
   if (target === BASE + 'episodes/') return EPISODES_HTML;
   if (target.includes('?s=')) return SEARCH_HTML;
+  if (target.includes('/movies/la-otra-madre-real/')) return REAL_MOVIE_DETAIL_HTML;
   if (target.includes('/movies/la-otra-madre/')) return MOVIE_DETAIL_HTML;
+  if (target === STREAMTAPE_URL) return STREAMTAPE_HTML;
+  if (target === STREAMTAPE_LITERAL_URL) return STREAMTAPE_LITERAL_HTML;
+  if (target === UQLOAD_URL) return UQLOAD_HTML;
+  if (target === DOOD_URL) return DOOD_HTML;
+  if (target === DOOD_MD5_URL) return DOOD_MD5_BODY;
+  if (target === POWVIDEO_URL) return POWVIDEO_HTML;
   if (target.includes('/tvshows/agatha-quien-si-no/')) return SERIES_DETAIL_HTML;
   if (target.includes('/episodes/agatha-quien-si-no-1x1/')) return EPISODE_DETAIL_HTML;
   return '';
@@ -385,6 +466,35 @@ test('load de episodio conserva numeración y resuelve streams', async () => {
   assert.ok(result.data.streams.some((stream) => stream.url === 'https://uqload.example/file.m3u8'));
 });
 
+test('load expone un episode reproducible para películas y episodios', async () => {
+  const { sandbox } = createSandbox();
+  const movie = await invoke(sandbox.load, `${ROOT}/movies/la-otra-madre/`);
+  const episode = await invoke(sandbox.load, `${ROOT}/episodes/agatha-quien-si-no-1x1/`);
+
+  for (const [result, target] of [
+    [movie, `${ROOT}/movies/la-otra-madre/`],
+    [episode, `${ROOT}/episodes/agatha-quien-si-no-1x1/`]
+  ]) {
+    assert.equal(result.success, true);
+    assert.ok(Array.isArray(result.data.episodes));
+    assert.equal(result.data.episodes.length, 1);
+    assert.ok(decodeURIComponent(result.data.episodes[0].url).includes(target));
+  }
+});
+
+test('load normaliza respuestas parse_html con innerHTML', async () => {
+  const innerHtmlParse = async (html, selector, attr) => Promise.resolve(parseHtml(html, selector, attr)).then((entries) =>
+    entries.map((entry) => ({ text: entry.text, innerHTML: entry.html, attr: entry.attr }))
+  );
+  const { sandbox } = createSandbox({ parse_html: innerHtmlParse });
+  const result = await invoke(sandbox.load, `${ROOT}/movies/la-otra-madre/`);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.title, 'La otra madre');
+  assert.equal(result.data.posterUrl, `${ROOT}/uploads/poster.jpg`);
+  assert.equal(result.data.episodes.length, 1);
+});
+
 test('load de estado list devuelve recomendaciones paginadas', async () => {
   const { sandbox } = createSandbox();
   const stateUrl = `alfa:list?url=${encodeURIComponent(BASE + 'movies/')}&title=Pel%C3%ADculas`;
@@ -405,6 +515,92 @@ test('loadStreams resuelve una opción directa', async () => {
   assert.equal(result.data.length, 1);
   assert.equal(result.data[0].url, 'https://uqload.example/file.m3u8');
   assert.equal(result.data[0].quality, 720);
+});
+
+test('loadStreams no devuelve embeds sin extractor como streams', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent('https://uqload.ws/embed-inzbnejkoc0b.html')}&source=uqload`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 0);
+});
+
+test('loadStreams resuelve StreamTape desde el embed sin extractor', async () => {
+  const { sandbox, requests } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(STREAMTAPE_URL)}&source=StreamTapeCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, STREAMTAPE_DIRECT);
+  assert.equal(result.data[0].source, 'StreamTapeCastellano');
+  assert.equal(result.data[0].headers.Referer, 'https://streamtape.com/');
+  assert.ok(requests.some((request) => request.url === STREAMTAPE_URL));
+});
+
+test('loadStreams resuelve StreamTape desde enlace literal con barra simple', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(STREAMTAPE_LITERAL_URL)}&source=StreamTapeCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, STREAMTAPE_LITERAL_DIRECT);
+});
+
+test('loadStreams resuelve DoodStream usando pass_md5 sin extractor', async () => {
+  const { sandbox, requests } = createSandbox({ ...FIXED_GLOBALS, loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(DOOD_URL)}&source=Playmogo`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, DOOD_DIRECT);
+  assert.equal(result.data[0].source, 'Playmogo');
+  assert.equal(result.data[0].headers.Referer, DOOD_URL);
+  assert.ok(requests.some((request) => request.url === DOOD_MD5_URL));
+});
+
+test('loadStreams resuelve UqLoad desde sources del embed sin extractor', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(UQLOAD_URL)}&source=UqLoadCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, UQLOAD_DIRECT);
+  assert.equal(result.data[0].source, 'UqLoadCastellano');
+});
+
+test('loadStreams resuelve UqLoad desde la query cuando la página falla', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(UQLOAD_QUERY_URL)}&source=UqLoadCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, UQLOAD_QUERY_DIRECT);
+});
+
+test('loadStreams resuelve PowVideo desde source del reproductor sin extractor', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(POWVIDEO_URL)}&source=PowVideoCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, POWVIDEO_DIRECT);
+  assert.equal(result.data[0].source, 'PowVideoCastellano');
+});
+
+test('loadStreams resuelve fuentes reales y omite el tráiler', async () => {
+  const { sandbox } = createSandbox({ ...FIXED_GLOBALS, loadExtractor: async () => [] });
+  const result = await invoke(sandbox.loadStreams, `${ROOT}/movies/la-otra-madre-real/`);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(Array.from(result.data, (stream) => stream.url), [UQLOAD_DIRECT, STREAMTAPE_DIRECT, POWVIDEO_DIRECT, DOOD_DIRECT]);
+  assert.equal(result.data.some((stream) => /trailer|youtube/i.test(stream.url)), false);
 });
 
 test('getHome usa el proxy cuando la respuesta directa está bloqueada', async () => {
