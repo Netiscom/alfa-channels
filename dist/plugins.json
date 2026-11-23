@@ -1,5 +1,30 @@
 [
   {
+    "packageName": "dev.alfa.skystream.areshd",
+    "name": "ARESHD",
+    "version": 1,
+    "baseUrl": "https://areshd.com/",
+    "description": "Películas, series y episodios en español de ARESHD",
+    "authors": [
+      "OpenCode"
+    ],
+    "languages": [
+      "es"
+    ],
+    "categories": [
+      "Movie",
+      "TVShow"
+    ],
+    "iconUrl": "https://areshd.com/favicon-32x32.png",
+    "domains": [
+      {
+        "name": "ARESHD",
+        "url": "https://areshd.com/"
+      }
+    ],
+    "url": "https://raw.githubusercontent.com/Netiscom/alfa-channels/main/dist/dev.alfa.skystream.areshd.sky"
+  },
+  {
     "packageName": "dev.alfa.skystream.estrenoscinesaa",
     "name": "EstrenosCinesaa",
     "version": 1,
