@@ -18,14 +18,6 @@
     /AuthenticationRequiredError/i
   ];
   const SKIP_MARKERS = [/mirrorace/i, /waaw/i, /netu/i, /trailer/i, /1fichier/i, /onefichier/i, /mediafire/i, /mega\b/i, /utorrent/i, /torrent/i];
-  const GENRE_NAMES = {
-    marvel: 'Marvel',
-    'd-c': 'D.C',
-    dc: 'D.C',
-    starwars: 'StarWars',
-    netflix: 'Netflix'
-  };
-
   function decodeEntities(value) {
     return String(value || '')
       .replace(/&#(\d+);/g, function(_, code) { return String.fromCharCode(Number(code)); })
@@ -287,23 +279,30 @@
   }
 
   async function parseCategories(html, base) {
-    const anchors = await parse(html, 'nav.genres li.cat-item a[href]', 'href');
-    const texts = await parse(html, 'nav.genres li.cat-item a[href]');
+    const source = String(html || '');
+    const nav = /<nav\b[^>]*class=["'][^"']*\bgenres\b[^"']*["'][^>]*>([\s\S]*?)<\/nav>/i.exec(source);
+    const list = /<ul\b[^>]*class=["'][^"']*\bgenres\b[^"']*["'][^>]*>([\s\S]*?)<\/ul>/i.exec(source);
+    const scope = nav ? nav[1] : (list ? list[1] : '');
+    if (!scope) return [];
+    const anchors = /<a\b[^>]*href=["']([^"']*\/genre\/[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi;
     const items = [];
     const seen = {};
-    for (let i = 0; i < anchors.length; i++) {
-      const href = resolveUrl(anchors[i].attr, base);
+    let match;
+    while ((match = anchors.exec(scope)) !== null) {
+      const href = resolveUrl(decodeEntities(match[1]), base);
       if (href.indexOf(GENRE_PATH) < 0) continue;
       const slugMatch = /\/genre\/([^/]+)\//i.exec(href);
       const slug = slugMatch ? slugMatch[1].toLowerCase() : '';
-      if (!GENRE_NAMES[slug] || seen[href]) continue;
+      if (!slug || seen[href]) continue;
+      const label = cleanTitle(String(match[2]).replace(/<[^>]*>/g, ' ')) || slug.replace(/-/g, ' ');
+      if (!label) continue;
       seen[href] = true;
       items.push(new MultimediaItem({
-        title: GENRE_NAMES[slug],
-        url: makeStateUrl('list', { url: href, title: GENRE_NAMES[slug] }),
+        title: label,
+        url: makeStateUrl('list', { url: href, title: label }),
         posterUrl: '',
         type: 'other',
-        description: 'Películas y series de ' + GENRE_NAMES[slug],
+        description: 'Películas y series de ' + label,
         headers: makeHeaders(href)
       }));
     }
@@ -325,7 +324,9 @@
     const dates = await parse(html, '.date[itemprop="dateCreated"], .date');
     const tags = await parse(html, '.sgeneros a[rel="tag"], nav.genres a[href*="/genre/"]');
     const episodeTitles = await parse(html, '.epih3, .episodiotitle a');
-    const image = ogImage(html) || firstAttr(await parse(html, '.sheader .poster img[src], img[itemprop="image"][src], img[src]', 'src'));
+    const posterImages = await parse(html, '.sheader .poster img[src], .sheader .poster img[data-src], img[itemprop="image"][src], img[itemprop="image"][data-src]', 'src');
+    const posterDataImages = await parse(html, '.sheader .poster img[data-src], img[itemprop="image"][data-src]', 'data-src');
+    const image = firstAttr(posterImages) || firstAttr(posterDataImages) || ogImage(html) || firstAttr(await parse(html, 'img[src]', 'src'));
     const rawTitle = firstText(headings) || decodeEntities(String((/<title>([^<]*)<\/title>/i.exec(html) || [])[1] || ''));
     const yearMatch = (/\b(?:19|20)\d{2}\b/.exec(firstText(dates) + ' ' + rawTitle) ||
       /"datePublished":"(?:19|20)\d{2}/.exec(String(html)) ||
@@ -489,19 +490,149 @@
     return '';
   }
 
+  function skipWhitespace(source, state) {
+    while (state.index < source.length && /\s/.test(source.charAt(state.index))) state.index++;
+  }
+
+  function readInteger(source, state) {
+    const match = /^\d+/.exec(source.slice(state.index));
+    if (!match) return null;
+    state.index += match[0].length;
+    return parseInt(match[0], 10);
+  }
+
+  function evaluateSubstringChain(value, source, state) {
+    let result = String(value);
+    while (source.slice(state.index, state.index + '.substring'.length) === '.substring') {
+      state.index += '.substring'.length;
+      skipWhitespace(source, state);
+      if (source.charAt(state.index) !== '(') return null;
+      state.index++;
+      skipWhitespace(source, state);
+      const start = readInteger(source, state);
+      if (start === null) return null;
+      skipWhitespace(source, state);
+      let end = result.length;
+      if (source.charAt(state.index) === ',') {
+        state.index++;
+        skipWhitespace(source, state);
+        end = readInteger(source, state);
+        if (end === null) return null;
+        skipWhitespace(source, state);
+      }
+      if (source.charAt(state.index) !== ')') return null;
+      state.index++;
+      result = result.substring(start, end);
+      skipWhitespace(source, state);
+    }
+    return result;
+  }
+
+  function readStringLiteral(source, state) {
+    skipWhitespace(source, state);
+    let grouped = false;
+    if (source.charAt(state.index) === '(') {
+      grouped = true;
+      state.index++;
+      skipWhitespace(source, state);
+    }
+    const quote = source.charAt(state.index);
+    if (quote !== "'" && quote !== '"') return null;
+    state.index++;
+    let value = '';
+    let closed = false;
+    while (state.index < source.length) {
+      const char = source.charAt(state.index++);
+      if (char === '\\') {
+        const escaped = source.charAt(state.index++);
+        if (escaped === '\\' || escaped === "'" || escaped === '"' || escaped === '/') {
+          value += escaped;
+        } else if (escaped === 'n') {
+          value += '\n';
+        } else if (escaped === 'r') {
+          value += '\r';
+        } else if (escaped === 't') {
+          value += '\t';
+        } else if (escaped === 'x') {
+          const hex = source.substr(state.index, 2);
+          if (!/^[0-9a-f]{2}$/i.test(hex)) return null;
+          value += String.fromCharCode(parseInt(hex, 16));
+          state.index += 2;
+        } else if (escaped === 'u') {
+          const hex = source.substr(state.index, 4);
+          if (!/^[0-9a-f]{4}$/i.test(hex)) return null;
+          value += String.fromCharCode(parseInt(hex, 16));
+          state.index += 4;
+        } else {
+          return null;
+        }
+        continue;
+      }
+      if (char === quote) {
+        closed = true;
+        break;
+      }
+      value += char;
+    }
+    if (!closed) return null;
+    if (grouped) {
+      skipWhitespace(source, state);
+      if (source.charAt(state.index) !== ')') return null;
+      state.index++;
+    }
+    return evaluateSubstringChain(value, source, state);
+  }
+
+  function evaluateStringExpression(expression) {
+    const source = String(expression || '').trim();
+    const state = { index: 0 };
+    let value = readStringLiteral(source, state);
+    if (value === null) return '';
+    skipWhitespace(source, state);
+    while (source.charAt(state.index) === '+') {
+      state.index++;
+      const part = readStringLiteral(source, state);
+      if (part === null) return '';
+      value += part;
+      skipWhitespace(source, state);
+    }
+    return state.index === source.length ? value : '';
+  }
+
+  function isStreamTapeUrl(value) {
+    return /^https?:\/\/(?:[a-z0-9-]+\.)*streamtape\.com(?:\/|$)/i.test(value) && /get_video/i.test(value);
+  }
+
+  function evaluateInnerHtmlUrl(body, target) {
+    const text = String(body || '');
+    const regex = /innerHTML\s*=\s*([^;]+);/gi;
+    let last = '';
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const value = absoluteUrl(evaluateStringExpression(match[1]), target);
+      if (isStreamTapeUrl(value)) last = value;
+    }
+    return last;
+  }
+
   function resolveStreamTape(body, target) {
     const text = String(body || '');
     const candidates = [];
-    const literal = /(?:(?:https?:)?\/\/|\/)[^\s'"<>]+\/get_video\?[^\s'"<>]+/i.exec(text);
-    if (literal) candidates.push(literal[0]);
-    const split = /innerHTML\s*=\s*['"]([^'"]+)['"]\s*\+\s*\(?\s*['"]([^'"]*)['"]/i.exec(text);
-    if (split) candidates.push(split[1] + split[2]);
+    const evaluated = evaluateInnerHtmlUrl(text, target);
+    if (evaluated) {
+      candidates.push(evaluated);
+    } else {
+      const literal = /(?:(?:https?:)?\/\/|\/)[^\s'"<>]+\/get_video\?[^\s'"<>]+/i.exec(text);
+      if (literal) candidates.push(literal[0]);
+      const split = /innerHTML\s*=\s*['"]([^'"]+)['"]\s*\+\s*\(?\s*['"]([^'"]*)['"]/i.exec(text);
+      if (split) candidates.push(split[1] + split[2]);
+    }
     const media = extractMediaUrls(text);
     for (let i = 0; i < media.length; i++) candidates.push(media[i]);
     const mapped = candidates.map(function(value) {
       return absoluteUrl(value, target);
     }).filter(function(value) {
-      return /^https?:\/\//i.test(value) && (/get_video/i.test(value) || isMediaUrl(value));
+      return /^https?:\/\//i.test(value) && (isStreamTapeUrl(value) || isMediaUrl(value));
     });
     return mapped.filter(function(value, index) {
       for (let i = 0; i < mapped.length; i++) {
@@ -687,6 +818,33 @@
     });
   }
 
+  function itemHomeKind(item) {
+    const state = parseState(item && item.url);
+    if (state && state.type === 'episode') return 'episode';
+    if (item && item.type === 'movie') return 'movie';
+    if (item && item.type === 'series') return 'series';
+    return '';
+  }
+
+  function withHomeItems(catalogItems, homeItems, kind) {
+    const primary = [];
+    for (let i = 0; i < homeItems.length; i++) {
+      if (itemHomeKind(homeItems[i]) === kind) primary.push(homeItems[i]);
+    }
+    if (!primary.length) return catalogItems;
+    const result = [];
+    const seen = {};
+    const candidates = primary.concat(catalogItems);
+    for (let i = 0; i < candidates.length; i++) {
+      const item = candidates[i];
+      const key = item.url || item.title;
+      if (!key || seen[key]) continue;
+      seen[key] = true;
+      result.push(item);
+    }
+    return result;
+  }
+
   async function getHome(cb) {
     try {
       const base = normalizeBase((typeof manifest !== 'undefined' && manifest.baseUrl) || DEFAULT_BASE) + '/';
@@ -701,23 +859,12 @@
         httpGet(urls['Últimos episodios']),
         httpGet(base)
       ]);
+      const homeItems = await parseListing(responses[3].body, base);
       const data = {};
-      data['Películas'] = await parseListing(responses[0].body, urls['Películas']);
-      data['Series'] = await parseListing(responses[1].body, urls['Series']);
-      data['Últimos episodios'] = await parseListing(responses[2].body, urls['Últimos episodios']);
-      const categories = await parseCategories(responses[3].body, base);
-      data['Géneros'] = categories.length ? categories : ['Marvel', 'D.C', 'StarWars', 'Netflix'].map(function(name) {
-        const slug = name === 'D.C' ? 'd-c' : name.toLowerCase();
-        const url = joinUrl(base, 'genre/' + slug + '/');
-        return new MultimediaItem({
-          title: name,
-          url: makeStateUrl('list', { url: url, title: name }),
-          posterUrl: '',
-          type: 'other',
-          description: 'Películas y series de ' + name,
-          headers: makeHeaders(url)
-        });
-      });
+      data['Películas'] = withHomeItems(await parseListing(responses[0].body, urls['Películas']), homeItems, 'movie');
+      data['Series'] = withHomeItems(await parseListing(responses[1].body, urls['Series']), homeItems, 'series');
+      data['Últimos episodios'] = withHomeItems(await parseListing(responses[2].body, urls['Últimos episodios']), homeItems, 'episode');
+      data['Géneros'] = await parseCategories(responses[3].body, base);
       cb({ success: true, data: data });
     } catch (error) {
       cb({ success: false, errorCode: 'HOME_ERROR', message: String((error && error.stack) || error) });

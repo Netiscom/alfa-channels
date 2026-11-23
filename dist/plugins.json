@@ -1,28 +1,5 @@
 [
   {
-    "packageName": "dev.alfa.skystream.cinecalidad",
-    "name": "CineCalidad",
-    "version": 2,
-    "baseUrl": "https://www.cinecalidad.vg/espana/",
-    "description": "Películas en castellano de CineCalidad España",
-    "authors": [
-      "OpenCode"
-    ],
-    "languages": [
-      "es"
-    ],
-    "categories": [
-      "Movie"
-    ],
-    "domains": [
-      {
-        "name": "CineCalidad España",
-        "url": "https://www.cinecalidad.vg/espana/"
-      }
-    ],
-    "url": "https://raw.githubusercontent.com/Netiscom/alfa-channels/main/dist/dev.alfa.skystream.cinecalidad.sky"
-  },
-  {
     "packageName": "dev.alfa.skystream.estrenoscinesaa",
     "name": "EstrenosCinesaa",
     "version": 1,

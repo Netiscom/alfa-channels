@@ -162,6 +162,14 @@ function episodeCard(slug, title, image) {
   </article>`;
 }
 
+function landscapeCard(kind, slug, title, image, year) {
+  const href = `/${kind}/${slug}/`;
+  return `<article id="post-19033" class="item ${kind === 'movies' ? 'movies' : 'tvshows'}">
+    <div class="image"><a href="${href}"><img src="${ROOT}/uploads/${image}.jpg" alt="${title}"></a></div>
+    <div class="data"><span>${year}</span><h3 class="title"><a href="${href}">${title}</a></h3></div>
+  </article>`;
+}
+
 const PLAYER_OPTIONS = `
   <ul id="playeroptionsul" class="no_ajax">
     <li class="dooplay_player_option" data-post="19031" data-type="movie" data-nume="1"><span class="server">uqload</span><span class="title">uqload</span></li>
@@ -185,6 +193,36 @@ const STREAMTAPE_LITERAL_URL = 'https://streamtape.com/e/literal12345/';
 const STREAMTAPE_LITERAL_DIRECT = 'https://streamtape.com/get_video?id=literal12345&expires=1795450940&ip=GxqsEROnDS9X&token=gTFLsppd1cde';
 const STREAMTAPE_LITERAL_HTML = `
   <div id="ideoolink" style="display:none;">/streamtape.com/get_video?id=literal12345&amp;expires=1795450940&amp;ip=GxqsEROnDS9X&amp;token=gTFLsppd1cde</div>
+`;
+
+const STREAMTAPE_OBFUSCATED_URL = 'https://streamtape.com/e/obfuscated12345/';
+const STREAMTAPE_OBFUSCATED_DIRECT = 'https://streamtape.com/get_video?id=obfuscated12345&expires=1795455406&ip=GxqsEROnDS9X&token=HwqeruobmtEa';
+const STREAMTAPE_OBFUSCATED_HTML = `
+  <div id="ideoolink" style="display:none;">/streamtape.com/get_video?id=obfuscated12345&amp;expires=1795455406&amp;ip=GxqsEROnDS9X&amp;token=placeholdercde</div>
+  <script>
+    document.getElementById('ideoolink').innerHTML = '/streamtape.comb/get_video?id=obfuscated12345&amp;expires=1795455406&amp;ip=GxqsEROnDS9X&amp;token=decoyxyz';
+    document.getElementById('ideoolink').innerHTML = '//streamtape.co'+ ('xcdm/get_video?id=obfuscated12345&amp;expires=1795455406&amp;ip=GxqsEROnDS9X&amp;token=HwqeruobmtEa').substring(2).substring(1);
+  </script>
+`;
+
+const STREAMTAPE_TRAILING_URL = 'https://streamtape.com/e/trailing12345/';
+const STREAMTAPE_TRAILING_DIRECT = 'https://streamtape.com/get_video?id=trailing12345&expires=1795455600&ip=GxqsEROnDS9X&token=ValidToken99';
+const STREAMTAPE_TRAILING_HTML = `
+  <div id="ideoolink" style="display:none;">/streamtape.com/get_video?id=trailing12345&amp;expires=1795455600&amp;ip=GxqsEROnDS9X&amp;token=placeholdercde</div>
+  <script>
+    document.getElementById('ideoolink').innerHTML = '//streamtape.comb'.substring(0, 16) + '/xb/get_video?id=trailing12345&amp;expires=1795455600&amp;ip=GxqsEROnDS9X&amp;token=ValidToken99'.substring(3, 200);
+    document.getElementById('ideoolink').innerHTML = 'Cargando...';
+  </script>
+`;
+
+const STREAMTAPE_UNSUPPORTED_URL = 'https://streamtape.com/e/unsupported12345/';
+const STREAMTAPE_UNSUPPORTED_LITERAL = 'https://streamtape.com/get_video?id=unsupported12345&expires=1795455700&ip=GxqsEROnDS9X&token=placeholdercde';
+const STREAMTAPE_UNSUPPORTED_HTML = `
+  <div id="ideoolink" style="display:none;">/streamtape.com/get_video?id=unsupported12345&amp;expires=1795455700&amp;ip=GxqsEROnDS9X&amp;token=placeholdercde</div>
+  <script>
+    document.getElementById('ideoolink').innerHTML = '//notstreamtape.com/get_video?id=unsupported12345&amp;expires=1795455700&amp;ip=GxqsEROnDS9X&amp;token=decoyxyz';
+    document.getElementById('ideoolink').innerHTML = atob('ZmFrZQ==');
+  </script>
 `;
 
 const UQLOAD_URL = 'https://uqload.vc/e/qz6fftnxdhv5?e19.uqload.vc/i/02/06269/qz6fftnxdhv5';
@@ -249,17 +287,24 @@ const FIXED_GLOBALS = {
 };
 
 const ROOT_HTML = `
-  <nav class="genres"><ul>
-    <li class="cat-item"><a href="/genre/marvel/">Marvel</a></li>
-    <li class="cat-item"><a href="/genre/d-c/">D.C</a></li>
-    <li class="cat-item"><a href="/genre/starwars/">StarWars</a></li>
-    <li class="cat-item"><a href="/genre/netflix/">Netflix</a></li>
+  <ul id="menu-main">
+    <li class="menu-item"><a href="/genre/marvel/">MARVEL</a></li>
+    <li class="menu-item"><a href="/genre/netflix/">NETFLIX</a></li>
+  </ul>
+  <nav class="genres"><h2 class="widget-title">Géneros</h2><ul class="genres falsescroll">
+    <li class="cat-item"><a href="/genre/accion/">Acción</a></li>
+    <li class="cat-item"><a href="/genre/action-adventure/">Action &amp; Adventure</a></li>
+    <li class="cat-item"><a href="/genre/aventura/">Aventura</a></li>
     <li class="cat-item"><a href="/genre/terror/">Terror</a></li>
   </ul></nav>
+  ${card('movies', 'la-otra-madre', 'La otra madre', 'poster', 2026)}
+  ${card('tvshows', 'agatha-quien-si-no', 'Agatha quien si no', 'agatha', 2024)}
+  ${episodeCard('agatha-quien-si-no-1x1', 'Encontrad la Senda', 'episode-300x170')}
 `;
 
 const MOVIES_HTML = [
-  card('movies', 'la-otra-madre', 'La otra madre', 'poster', 2026),
+  landscapeCard('movies', 'la-otra-madre', 'La otra madre', 'backdrop-780x439', 2026),
+  landscapeCard('movies', 'exclusivo-catalogo', 'Exclusivo catálogo', 'catalogo-780x439', 2025),
   '<div class="pagination"><a class="arrow_pag" href="/movies/page/2/">Siguiente</a></div>'
 ].join('');
 
@@ -273,7 +318,7 @@ function detailHtml(options) {
     <meta property="og:image" content="${ROOT}/uploads/${config.image || 'poster'}.jpg" />
   </head><body>
     <div class="sheader">
-      <div class="poster"><img src="${ROOT}/uploads/${config.image || 'poster'}-200x300.jpg" itemprop="image"></div>
+      <div class="poster"><img src="${ROOT}/uploads/${config.poster || config.image || 'poster'}-200x300.jpg" itemprop="image"></div>
       <div class="data">
         <h1>${config.title || 'La otra madre'}</h1>
         <div class="starstruck-rating"><span class="dt_rating_vgs" itemprop="ratingValue">5</span></div>
@@ -291,6 +336,7 @@ function detailHtml(options) {
 
 const MOVIE_DETAIL_HTML = detailHtml({});
 const REAL_MOVIE_DETAIL_HTML = detailHtml({ playerOptions: REAL_PLAYER_OPTIONS });
+const BACKDROP_DETAIL_HTML = detailHtml({ image: 'backdrop-780x439', poster: 'poster' });
 const EPISODE_DETAIL_HTML = detailHtml({ title: 'Agatha 1x1', episodeTitle: 'Encontrad la Senda', image: 'episode' });
 
 const SERIES_DETAIL_HTML = `
@@ -306,9 +352,13 @@ function bodyFor(target) {
   if (target === BASE + 'episodes/') return EPISODES_HTML;
   if (target.includes('?s=')) return SEARCH_HTML;
   if (target.includes('/movies/la-otra-madre-real/')) return REAL_MOVIE_DETAIL_HTML;
+  if (target.includes('/movies/la-otra-madre-backdrop/')) return BACKDROP_DETAIL_HTML;
   if (target.includes('/movies/la-otra-madre/')) return MOVIE_DETAIL_HTML;
   if (target === STREAMTAPE_URL) return STREAMTAPE_HTML;
   if (target === STREAMTAPE_LITERAL_URL) return STREAMTAPE_LITERAL_HTML;
+  if (target === STREAMTAPE_OBFUSCATED_URL) return STREAMTAPE_OBFUSCATED_HTML;
+  if (target === STREAMTAPE_TRAILING_URL) return STREAMTAPE_TRAILING_HTML;
+  if (target === STREAMTAPE_UNSUPPORTED_URL) return STREAMTAPE_UNSUPPORTED_HTML;
   if (target === UQLOAD_URL) return UQLOAD_HTML;
   if (target === DOOD_URL) return DOOD_HTML;
   if (target === DOOD_MD5_URL) return DOOD_MD5_BODY;
@@ -406,10 +456,56 @@ test('getHome separa películas, series, episodios y géneros', async () => {
   assert.equal(result.data['Películas'][0].posterUrl, `${ROOT}/uploads/poster.jpg`);
   assert.equal(result.data['Películas'][0].year, 2026);
   assert.equal(result.data['Películas'][0].type, 'movie');
-  assert.equal(result.data['Películas'][1].title, 'Página siguiente');
+  assert.ok(Array.from(result.data['Películas'], (item) => item.title).includes('Página siguiente'));
   assert.equal(result.data['Series'][0].type, 'series');
   assert.equal(result.data['Últimos episodios'][0].title, '1x1 - Encontrad la Senda');
-  assert.deepEqual(Array.from(result.data['Géneros'], (item) => item.title), ['Marvel', 'D.C', 'StarWars', 'Netflix']);
+  assert.deepEqual(Array.from(result.data['Géneros'], (item) => item.title), ['Acción', 'Action & Adventure', 'Aventura', 'Terror']);
+});
+
+test('getHome no inventa géneros cuando no hay widget', async () => {
+  const { sandbox } = createSandbox({
+    http_get: async (url) => ({
+      status: 200,
+      body: url === BASE
+        ? '<ul id="menu-main"><li class="menu-item"><a href="/genre/marvel/">MARVEL</a></li></ul>'
+        : bodyFor(url),
+      headers: {}
+    })
+  });
+  const result = await invoke(sandbox.getHome);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data['Géneros'].length, 0);
+});
+
+test('getHome usa carátulas de la portada aunque el catálogo tenga imágenes panorámicas', async () => {
+  const { sandbox } = createSandbox();
+  const result = await invoke(sandbox.getHome);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data['Películas'][0].posterUrl, `${ROOT}/uploads/poster.jpg`);
+  assert.notEqual(result.data['Películas'][0].posterUrl, `${ROOT}/uploads/backdrop-780x439.jpg`);
+  assert.ok(Array.from(result.data['Películas'], (item) => item.title).includes('Página siguiente'));
+});
+
+test('getHome conserva títulos exclusivos del catálogo sin perder las carátulas de portada', async () => {
+  const { sandbox } = createSandbox();
+  const result = await invoke(sandbox.getHome);
+
+  const titles = Array.from(result.data['Películas'], (item) => item.title);
+  assert.equal(result.success, true);
+  assert.equal(result.data['Películas'][0].posterUrl, `${ROOT}/uploads/poster.jpg`);
+  assert.ok(titles.includes('Exclusivo catálogo'));
+  assert.ok(titles.includes('Página siguiente'));
+});
+
+test('load prefiere carátula del detalle sobre og:image panorámica', async () => {
+  const { sandbox } = createSandbox();
+  const result = await invoke(sandbox.load, `${ROOT}/movies/la-otra-madre-backdrop/`);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.posterUrl, `${ROOT}/uploads/poster.jpg`);
+  assert.notEqual(result.data.posterUrl, `${ROOT}/uploads/backdrop-780x439.jpg`);
 });
 
 test('search consulta el buscador raíz y filtra resultados útiles', async () => {
@@ -503,7 +599,7 @@ test('load de estado list devuelve recomendaciones paginadas', async () => {
   assert.equal(result.success, true);
   assert.equal(result.data.title, 'Películas');
   assert.equal(result.data.recommendations[0].title, 'La otra madre');
-  assert.equal(result.data.recommendations[1].title, 'Página siguiente');
+  assert.ok(Array.from(result.data.recommendations, (item) => item.title).includes('Página siguiente'));
 });
 
 test('loadStreams resuelve una opción directa', async () => {
@@ -547,6 +643,38 @@ test('loadStreams resuelve StreamTape desde enlace literal con barra simple', as
   assert.equal(result.success, true);
   assert.equal(result.data.length, 1);
   assert.equal(result.data[0].url, STREAMTAPE_LITERAL_DIRECT);
+});
+
+test('loadStreams usa el ultimo innerHTML evaluado valido de StreamTape', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(STREAMTAPE_OBFUSCATED_URL)}&source=StreamTapeCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, STREAMTAPE_OBFUSCATED_DIRECT);
+  assert.equal(result.data[0].headers.Referer, 'https://streamtape.com/');
+});
+
+test('loadStreams conserva un innerHTML valido aunque despues aparezca texto', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(STREAMTAPE_TRAILING_URL)}&source=StreamTapeCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, STREAMTAPE_TRAILING_DIRECT);
+});
+
+test('loadStreams descarta dominios lookalike y usa el fallback literal', async () => {
+  const { sandbox } = createSandbox({ loadExtractor: async () => [] });
+  const stateUrl = `alfa:option?url=${encodeURIComponent(STREAMTAPE_UNSUPPORTED_URL)}&source=StreamTapeCastellano`;
+  const result = await invoke(sandbox.loadStreams, stateUrl);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.length, 1);
+  assert.equal(result.data[0].url, STREAMTAPE_UNSUPPORTED_LITERAL);
+  assert.ok(!result.data[0].url.includes('notstreamtape'));
 });
 
 test('loadStreams resuelve DoodStream usando pass_md5 sin extractor', async () => {
